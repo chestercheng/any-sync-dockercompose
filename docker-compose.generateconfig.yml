@@ -1,0 +1,19 @@
+services:
+  anyconf:
+    build:
+      context: .
+      dockerfile: generateconfig/anyconf.dockerfile
+    volumes:
+      - ./:/code
+      - "${STORAGE_DIR}:/code/storage"
+
+  processing:
+    depends_on:
+      anyconf:
+        condition: service_completed_successfully
+    build:
+      context: .
+      dockerfile: generateconfig/processing.dockerfile
+    volumes:
+      - ./:/code
+      - "${STORAGE_DIR}:/code/storage"

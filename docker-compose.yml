@@ -1,29 +1,5 @@
 services:
-  # generate configs using the anyconf utility
-  generateconfig-anyconf:
-    build:
-      context: .
-      dockerfile: Dockerfile-generateconfig-anyconf
-    volumes:
-      - ./:/code
-      - "${STORAGE_DIR}:/code/storage"
-
-  # processing any-sync-* configs
-  generateconfig-processing:
-    depends_on:
-      generateconfig-anyconf:
-        condition: service_completed_successfully
-    build:
-      context: .
-      dockerfile: Dockerfile-generateconfig-processing
-    volumes:
-      - ./:/code
-      - "${STORAGE_DIR}:/code/storage"
-
   mongo-1:
-    depends_on:
-      generateconfig-processing:
-        condition: service_completed_successfully
     image: "mongo:${MONGO_VERSION}"
     restart: unless-stopped
     command: ["--replSet", "${MONGO_REPLICA_SET}", "--port", "${MONGO_1_PORT}"]
@@ -35,9 +11,6 @@ services:
       start_period: 30s
 
   redis:
-    depends_on:
-      generateconfig-processing:
-        condition: service_completed_successfully
     image: "redis/redis-stack-server:${REDIS_VERSION}"
     restart: unless-stopped
     command: ["redis-server", "--port", "${REDIS_PORT}", "--dir", "/data/", "--appendonly", "yes", "--maxmemory", "${REDIS_MAXMEMORY}", "--maxmemory-policy", "noeviction", "--protected-mode", "no", "--loadmodule", "/opt/redis-stack/lib/redisbloom.so"]
@@ -82,8 +55,6 @@ services:
   any-sync-coordinator_bootstrap:
     image: "ghcr.io/anyproto/any-sync-coordinator:${ANY_SYNC_COORDINATOR_VERSION}"
     depends_on:
-      generateconfig-processing:
-        condition: service_completed_successfully
       mongo-1:
         condition: service_healthy
     volumes:
@@ -94,8 +65,6 @@ services:
   any-sync-coordinator:
     image: "ghcr.io/anyproto/any-sync-coordinator:${ANY_SYNC_COORDINATOR_VERSION}"
     depends_on:
-      generateconfig-processing:
-        condition: service_completed_successfully
       mongo-1:
         condition: service_healthy
       any-sync-coordinator_bootstrap:
@@ -156,46 +125,6 @@ services:
           memory: ${ANY_SYNC_DAEMONS_MEMORY_LIMIT:-}
     restart: unless-stopped
 
-  any-sync-node-2:
-    image: "ghcr.io/anyproto/any-sync-node:${ANY_SYNC_NODE_VERSION}"
-    depends_on:
-      any-sync-coordinator:
-        condition: service_started
-    ports:
-      - "${ANY_SYNC_NODE_2_PORT}:${ANY_SYNC_NODE_2_PORT}"
-      - "${ANY_SYNC_NODE_2_QUIC_PORT}:${ANY_SYNC_NODE_2_QUIC_PORT}/udp"
-      - 8082:8080
-      - 8002:8000
-    volumes:
-      - ./etc/any-sync-node-2/:/etc/any-sync-node/
-      - "${STORAGE_DIR}/any-sync-node-2/:/storage/"
-      - "${STORAGE_DIR}/networkStore/any-sync-node-2/:/networkStore/"
-    deploy:
-      resources:
-        limits:
-          memory: ${ANY_SYNC_DAEMONS_MEMORY_LIMIT:-}
-    restart: unless-stopped
-
-  any-sync-node-3:
-    image: "ghcr.io/anyproto/any-sync-node:${ANY_SYNC_NODE_VERSION}"
-    depends_on:
-      any-sync-coordinator:
-        condition: service_started
-    ports:
-      - "${ANY_SYNC_NODE_3_PORT}:${ANY_SYNC_NODE_3_PORT}"
-      - "${ANY_SYNC_NODE_3_QUIC_PORT}:${ANY_SYNC_NODE_3_QUIC_PORT}/udp"
-      - 8083:8080
-      - 8003:8000
-    volumes:
-      - ./etc/any-sync-node-3/:/etc/any-sync-node/
-      - "${STORAGE_DIR}/any-sync-node-3/:/storage/"
-      - "${STORAGE_DIR}/networkStore/any-sync-node-3/:/networkStore/"
-    deploy:
-      resources:
-        limits:
-          memory: ${ANY_SYNC_DAEMONS_MEMORY_LIMIT:-}
-    restart: unless-stopped
-
   any-sync-consensusnode:
     image: "ghcr.io/anyproto/any-sync-consensusnode:${ANY_SYNC_CONSENSUSNODE_VERSION}"
     depends_on:
@@ -213,25 +142,3 @@ services:
         limits:
           memory: ${ANY_SYNC_DAEMONS_MEMORY_LIMIT:-}
     restart: unless-stopped
-
-  # any-sync-netcheck
-  netcheck:
-    image: "ghcr.io/anyproto/any-sync-tools:${ANY_SYNC_TOOLS_VERSION}"
-    restart: unless-stopped
-    depends_on:
-      - any-sync-consensusnode
-      - any-sync-filenode
-      - any-sync-coordinator
-      - any-sync-node-1
-      - any-sync-node-2
-      - any-sync-node-3
-    volumes:
-      - ./:/code
-      - "${STORAGE_DIR}:/code/storage"
-    command: ["tail", "-f", "/dev/null"]
-    stop_signal: SIGKILL
-    tty: true
-    healthcheck:
-      test: any-sync-netcheck -c /code/storage/docker-generateconfig/nodes.yml 2>&1| grep -P 'netcheck\s+success'
-      interval: 60s
-      start_period: 5s

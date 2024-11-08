@@ -1,12 +1,14 @@
 .DEFAULT_GOAL := start
 
-generate_env:
-	docker buildx build --load --tag generateconfig-env --file Dockerfile-generateconfig-env .
-	docker run --rm \
-		--volume ${CURDIR}/:/code/ \
-		generateconfig-env
+.env:
+	docker build --tag generateconfig-env --file generateconfig/env.dockerfile .
+	docker run --rm --volume ${CURDIR}/:/code/ generateconfig-env
 
-start: generate_env
+storage/generateconfig: .env
+	docker compose -f docker-compose.generateconfig.yml run --rm --build anyconf
+	docker compose -f docker-compose.generateconfig.yml run --rm --build processing
+
+start: storage/generateconfig
 	docker compose up --detach --remove-orphans
 	@echo "Done! Upload your self-hosted network configuration file ${CURDIR}/etc/client.yml into the client app"
 	@echo "See: https://doc.anytype.io/anytype-docs/data-and-security/self-hosting#switching-between-networks"

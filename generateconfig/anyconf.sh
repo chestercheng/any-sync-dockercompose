@@ -4,9 +4,9 @@ echo "INFO: $0 start"
 echo "INFO: loading .env file"
 source .env
 
-echo "INFO: create persistent config dir='./storage/docker-generateconfig'"
-install -d ./storage/docker-generateconfig
-cd ./storage/docker-generateconfig
+echo "INFO: create persistent config dir='./storage/generateconfig'"
+install -d ./storage/generateconfig
+cd ./storage/generateconfig
 
 # generate networkId
 if [[ -s .networkId ]]; then
@@ -31,14 +31,10 @@ else
     echo "INFO: save nodes and accounts not found, createing"
     anyconf generate-nodes \
         --t tree \
-        --t tree \
-        --t tree \
         --t coordinator \
         --t file \
         --t consensus \
         --addresses ${ANY_SYNC_NODE_1_ADDRESSES} \
-        --addresses ${ANY_SYNC_NODE_2_ADDRESSES} \
-        --addresses ${ANY_SYNC_NODE_3_ADDRESSES} \
         --addresses ${ANY_SYNC_COORDINATOR_ADDRESSES} \
         --addresses ${ANY_SYNC_FILENODE_ADDRESSES} \
         --addresses ${ANY_SYNC_CONSENSUSNODE_ADDRESSES} \
@@ -52,7 +48,7 @@ fi
 echo "INFO: yq processing yml files"
 yq --indent 2 --inplace 'del(.creationTime)' nodes.yml
 yq --indent 2 --inplace ".networkId |= \"${NETWORK_ID}\"" nodes.yml
+yq --indent 2 --inplace ".account.signingKey |= \"${NETWORK_SIGNING_KEY}\"" account1.yml
 yq --indent 2 --inplace ".account.signingKey |= \"${NETWORK_SIGNING_KEY}\"" account3.yml
-yq --indent 2 --inplace ".account.signingKey |= \"${NETWORK_SIGNING_KEY}\"" account5.yml
 
 echo "INFO: $0 done"
